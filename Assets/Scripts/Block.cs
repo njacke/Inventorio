@@ -1,11 +1,15 @@
+using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 
 public class Block : MonoBehaviour
 {
-
+    private bool isSelected = false;
     private bool isDragging = false;
     //private Vector3 offset;
+    
+    private SpriteRenderer spriteRenderer;
+    private BlockManager blockManager;
     private Vector3 initialPos;
 
     private float xMin;
@@ -21,12 +25,17 @@ public class Block : MonoBehaviour
     private float gridSnapOffset = 0.5f;
 
     void Start() {
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        blockManager = FindObjectOfType<BlockManager>();
+
         SetUpMoveBoundries();
     }
 
     private void OnMouseDown(){
         Debug.Log("Entered OnMouseDown");
         if (!isDragging){
+            isSelected = false;
+            blockManager.UpdateBlockSelection(this, isSelected);
             isDragging = true;
             Debug.Log("isDragging set to true");
             initialPos = transform.position;
@@ -42,11 +51,17 @@ public class Block : MonoBehaviour
             var newPosY = Mathf.Clamp(currentMouseWorldPos.y, yMin, yMax);
 
             if(IsOnGrid()){                    
-                transform.position = SnapPositionToGrid(new Vector3 (newPosX, newPosY, 0));
+                transform.position = SnapPositionToGrid(new Vector3 (newPosX, newPosY, -1f));
+            }
+            else{
+                transform.position = new Vector3(newPosX, newPosY, -1f);
             }
 
+            if(IsPositionTaken(transform.position)){
+                spriteRenderer.color = Color.red;            
+            }
             else{
-                transform.position = new Vector3(newPosX, newPosY, 0);
+                spriteRenderer.color = Color.white;
             }
             
             //transform.position = GetMouseWorldPosition() + offset;
@@ -56,9 +71,14 @@ public class Block : MonoBehaviour
 
     private void OnMouseUp(){
         isDragging = false;
-        if(!IsOnGrid()){
+        if(!IsOnGrid() || IsPositionTaken(transform.position)){
             transform.position = initialPos;
         }
+        else{
+            transform.position = new Vector3(transform.position.x, transform.position.y, 0f);
+        }
+
+        spriteRenderer.color = Color.white;
         
         Debug.Log("isDragging set to false");
     }
@@ -83,6 +103,16 @@ public class Block : MonoBehaviour
         return new Vector3(snappedX + gridSnapOffset, snappedY + gridSnapOffset, position.z);
     }
 
+    private bool IsPositionTaken(Vector3 position){
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(position, 0.1f);
+        foreach (Collider2D collider in colliders){
+            if (collider.gameObject != gameObject){
+                return true;
+            }
+        }
+        return false;
+    }
+
     // change so padding is set based on block type
     private void SetUpMoveBoundries(){
         Camera gameCamera = Camera.main;
@@ -92,4 +122,16 @@ public class Block : MonoBehaviour
         yMax = gameCamera.ViewportToWorldPoint(new Vector3(0, 1, 0)).y - padding;
     }
 
+    public void ToggleSelection(bool isMaxCount){
+        if(!isSelected && IsOnGrid() && !isMaxCount){
+            isSelected = true;
+            blockManager.UpdateBlockSelection(this, isSelected);
+            spriteRenderer.color = Color.green;
+        }
+        else{
+            isSelected = false;
+            blockManager.UpdateBlockSelection(this, isSelected);
+            spriteRenderer.color = Color.white;
+        }
+    }
 }
